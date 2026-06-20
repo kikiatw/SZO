@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>遊戲全屬性高維檢索大系統</title>
+    <script src="monsters_db.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: #1a202c; font-size: 26px; margin-bottom: 20px; letter-spacing: 1px; }
+        
+        /* 雙框搜尋 */
+        .search-container { display: grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-bottom: 15px; }
+        .input-group { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .input-group label { display: block; font-weight: bold; margin-bottom: 6px; color: #4a5568; font-size: 13px; }
+        .search-box { width: 100%; padding: 10px; font-size: 15px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
+        .search-box:focus { border-color: #4299e1; outline: none; }
+        
+        .stats { margin-bottom: 12px; font-size: 14px; color: #4a5568; text-align: right; font-weight: 500; }
+        
+        /* 卡片佈局 */
+        .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 6px solid #4a5568; }
+        
+        /* Line 1 */
+        .line-1 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-bottom: 6px; border-bottom: 1px solid #edf2f7; }
+        .m-title { font-size: 17px; font-weight: bold; color: #2d3748; margin-right: 5px; }
+        .badge { padding: 3px 8px; border-radius: 4px; color: white; font-size: 12px; font-weight: bold; }
+        .bg-race { background-color: #2b6cb0; }
+        .bg-sub { background-color: #319795; }
+        .bg-lvl { background-color: #dd6b20; }
+        .bg-loc { background-color: #edf2f7; color: #2c7a7b; font-weight: 600; border: 1px solid #e2e8f0; }
+
+        /* Line 2 */
+        .line-2 { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; padding: 8px 0; font-family: monospace; font-weight: bold; color: #4a5568; }
+        .attr-item { background-color: #f7fafc; padding: 2px 8px; border-radius: 4px; border: 1px solid #edf2f7; }
+        .attr-val { color: #e53e3e; }
+        .attr-hp { color: #38a169; }
+        .attr-mp { color: #3182ce; }
+        .attr-exp { color: #008080; background-color: #e6fffa; border: 1px solid #b2f5ea; padding: 2px 8px; border-radius: 4px; }
+
+        /* Line 3 */
+        .line-3 { font-size: 14px; padding: 6px 0; color: #2d3748; display: flex; align-items: flex-start; }
+        .skill-title { font-weight: bold; color: #718096; flex-shrink: 0; }
+        .skill-container { display: flex; flex-wrap: wrap; gap: 6px; }
+        .skill-tag { background: #ebf8ff; color: #2b6cb0; padding: 1px 6px; border-radius: 4px; font-size: 13px; font-weight: 500; border: 1px solid #bee3f8; }
+
+        /* Line 4 */
+        .line-4 { font-size: 14px; padding-top: 6px; border-top: 1px dashed #edf2f7; margin-top: 4px; color: #2d3748; }
+        .drop-title { font-weight: bold; color: #718096; }
+        .drop-item-span { display: inline-block; margin-right: 12px; }
+        .drop-pct { font-weight: bold; color: #4a5568; }
+        .drop-rare { color: #e53e3e !important; background-color: #fff5f5; padding: 0 4px; border-radius: 3px; border: 1px solid #fed7d7; }
+
+        .highlight { background-color: #f6e05e; font-weight: bold; }
+
+        /* 豪邁大人款雙按鈕區 */
+        .button-zone { display: flex; justify-content: center; gap: 20px; margin: 30px 0; }
+        .btn-action { background-color: white; border: 2px solid #4299e1; color: #3182ce; padding: 12px 24px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn-action:hover { background-color: #4299e1; color: white; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-all { border-color: #38a169; color: #38a169; }
+        .btn-all:hover { background-color: #38a169; color: white; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🐉 遊戲全屬性高維檢索大系統</h1>
+    
+    <div class="search-container">
+        <div class="input-group">
+            <label>🎯 等級區間篩選 (+300 ~ -100)</label>
+            <input type="number" id="lvlSearch" class="search-box" placeholder="輸入目標等級...">
+        </div>
+        <div class="input-group">
+            <label>🔍 大格局綜合檢索</label>
+            <input type="text" id="keywordSearch" class="search-box" placeholder="輸入地圖、技能、寶物、種族、名稱或 ID...">
+        </div>
+    </div>
+
+    <div class="stats" id="search-stats">正在加載資料庫...</div>
+    <div id="results"></div>
+    
+    <div class="button-zone" id="button-control" style="display: none;">
+        <button class="btn-action" id="btn-next">🔽 看後續 100 筆結果</button>
+        <button class="btn-action btn-all" id="btn-all">⚡ 直接解鎖全部結果</button>
+    </div>
+</div>
+
+<script>
+const monsters = typeof MONSTERS_DATA !== 'undefined' ? MONSTERS_DATA : [];
+
+// 核心分頁狀態控制
+let currentFilteredData = []; // 當前篩選出的總資料
+let limitCount = 100;         // 當前網頁渲染上限
+let currentKeyword = '';      // 紀錄當前搜尋字串
+
+function init() {
+    const stats = document.getElementById('search-stats');
+    if (monsters.length === 0) {
+        stats.innerText = "錯誤：找不到資料檔，請確保已成功運行 Python 產出 monsters_db.js。";
+        return;
+    }
+    // 初始狀態下，資料為全部怪物，預設切出 100 筆
+    currentFilteredData = monsters;
+    limitCount = 100;
+    currentKeyword = '';
+    
+    stats.innerText = `資料庫加載成功！共收錄 ${monsters.length} 隻怪物。`;
+    renderResults(); 
+}
+
+function renderResults() {
+    const container = document.getElementById('results');
+    const stats = document.getElementById('search-stats');
+    const btnZone = document.getElementById('button-control');
+    
+    // 如果是重新渲染（第一頁），清空容器
+    if (limitCount === 100 || limitCount >= currentFilteredData.length) {
+        container.innerHTML = '';
+    }
+    
+    if (currentFilteredData.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;">找不到符合篩選條件的怪物數據</div>';
+        stats.innerText = "找到 0 筆結果。";
+        btnZone.style.display = 'none';
+        return;
+    }
+    
+    // 切出當前要顯示的片段
+    const startIdx = limitCount === 100 ? 0 : container.children.length;
+    const displayData = currentFilteredData.slice(startIdx, limitCount);
+    
+    displayData.forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        
+        // 1. 技能高亮處理
+        let skillsHtml = '<span class="skill-container">';
+        if (m.skills && m.skills.length > 0) {
+            skillsHtml += m.skills.map(sk => {
+                let displaySk = sk;
+                if (currentKeyword && displaySk.toLowerCase().includes(currentKeyword)) {
+                    const re = new RegExp(`(${currentKeyword})`, 'gi');
+                    displaySk = displaySk.replace(re, '<span class="highlight">$1</span>');
+                }
+                return `<span class="skill-tag">✨ ${displaySk}</span>`;
+            }).join(' ');
+        } else {
+            skillsHtml += `<span style="color:#a0aec0; font-style:italic;">無技能</span>`;
+        }
+        skillsHtml += '</span>';
+
+        // 2. 掉寶率低於 0.009% 紅色高亮處理
+        let dropsHtml = '';
+        if (m.drops && m.drops.length > 0) {
+            dropsHtml = m.drops.map(d => {
+                let displayPercent = Number(d.percent).toFixed(7).replace(/\.?0+$/, "");
+                if (displayPercent === "0" && d.percent > 0) displayPercent = d.percent;
+                
+                let isRare = d.percent < 0.009;
+                let pctClass = isRare ? 'drop-pct drop-rare' : 'drop-pct';
+                
+                let finalName = d.name;
+                if (currentKeyword && finalName.toLowerCase().includes(currentKeyword)) {
+                    const re = new RegExp(`(${currentKeyword})`, 'gi');
+                    finalName = finalName.replace(re, '<span class="highlight">$1</span>');
+                }
+                return `<span class="drop-item-span">📦 ${finalName}(<span class="${pctClass}">${displayPercent}%</span>)</span>`;
+            }).join(', ');
+        } else {
+            dropsHtml = `<span style="color:#a0aec0;">無掉落物資料</span>`;
+        }
+        
+        // 3. 基礎文字高亮
+        let nameHtml = `[${m.id}] ${m.name}`;
+        let locHtml = m.location;
+        if (currentKeyword) {
+            const re = new RegExp(`(${currentKeyword})`, 'gi');
+            nameHtml = nameHtml.replace(re, '<span class="highlight">$1</span>');
+            locHtml = locHtml.replace(re, '<span class="highlight">$1</span>');
+        }
+        
+        card.innerHTML = `
+            <div class="line-1">
+                <span class="m-title">${nameHtml}</span>
+                <span class="badge bg-race">種族: ${m.race}</span>
+                <span class="badge bg-sub">子類: ${m.sub_race}</span>
+                <span class="badge bg-lvl">Lv.${m.level}</span>
+                <span class="badge bg-loc">📍 出沒地點：${locHtml}</span>
+            </div>
+            
+            <div class="line-2">
+                <span class="attr-item">力: <span class="attr-val">${m.str}</span></span>
+                <span class="attr-item">體: <span class="attr-val">${m.con}</span></span>
+                <span class="attr-item">智: <span class="attr-val">${m.int}</span></span>
+                <span class="attr-item">敏: <span class="attr-val">${m.dex}</span></span>
+                <span class="attr-item">HP: <span class="attr-hp">${m.hp.toLocaleString()}</span></span>
+                <span class="attr-item">MP: <span class="attr-mp">${m.mp.toLocaleString()}</span></span>
+                <span class="attr-exp">EXP: <span>${m.exp.toLocaleString()}</span></span>
+            </div>
+            
+            <div class="line-3">
+                <span class="skill-title">⚡ 技能：</span>
+                ${skillsHtml}
+            </div>
+            
+            <div class="line-4">
+                <span class="drop-title">💰 掉落物品：</span>
+                ${dropsHtml}
+            </div>
+        `;
+        container.appendChild(card);
+    });
+    
+    // 更新狀態列文字
+    stats.innerText = `符合條件總數：${currentFilteredData.length} 筆 | 目前已加載：${Math.min(limitCount, currentFilteredData.length)} 筆。`;
+    
+    // 智能判斷是否需要出現大人款雙按鈕
+    if (currentFilteredData.length > limitCount) {
+        btnZone.style.display = 'flex';
+    } else {
+        btnZone.style.display = 'none';
+    }
+}
+
+// 監聽按鈕點擊事件
+document.getElementById('btn-next').addEventListener('click', () => {
+    limitCount += 100; // 看後續 100 筆
+    renderResults();
+});
+
+document.getElementById('btn-all').addEventListener('click', () => {
+    limitCount = currentFilteredData.length; // 直接全開解鎖
+    renderResults();
+});
+
+// 核心雙框過濾演算法
+['lvlSearch', 'keywordSearch'].forEach(id => {
+    document.getElementById(id).addEventListener('input', doFilter);
+});
+
+function doFilter() {
+    const lvlVal = document.getElementById('lvlSearch').value.trim();
+    const keywordVal = document.getElementById('keywordSearch').value.trim().toLowerCase();
+    
+    // 每次重新輸入，重置分頁計數
+    limitCount = 100;
+    currentKeyword = keywordVal;
+    
+    let filtered = monsters;
+    
+    // 1. 等級過濾
+    if (lvlVal !== '') {
+        const targetLvl = parseInt(lvlVal, 10);
+        filtered = filtered.filter(m => m.level >= (targetLvl - 100) && m.level <= (targetLvl + 300));
+    }
+    
+    // 2. 綜合關鍵字過濾
+    if (keywordVal !== '') {
+        filtered = filtered.filter(m => {
+            return m.name.toLowerCase().includes(keywordVal) || 
+                   m.id.toString().includes(keywordVal) || 
+                   m.location.toLowerCase().includes(keywordVal) || 
+                   m.race.toLowerCase().includes(keywordVal) ||
+                   m.sub_race.toLowerCase().includes(keywordVal) ||
+                   m.skills.some(s => s.toLowerCase().includes(keywordVal)) ||
+                   m.drops.some(d => d.name.toLowerCase().includes(keywordVal));
+        });
+    }
+    
+    // 套用過濾結果並渲染
+    currentFilteredData = filtered;
+    renderResults();
+}
+
+init();
+</script>
+</body>
+</html>
