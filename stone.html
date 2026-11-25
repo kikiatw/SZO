@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>寶石合成/分解 階梯流向計算機</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-size: 19px;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+    .btn-large {
+      font-size: 20px;
+      font-weight: bold;
+      padding: 12px 24px;
+      border-radius: 12px;
+      transition: all 0.2s;
+    }
+    .gem-card {
+      border: 3px solid #334155;
+      border-radius: 16px;
+      background: #1e293b;
+    }
+    .gem-card.active {
+      border-color: #f59e0b;
+      background: #3b82f620;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+  <div class="max-w-7xl mx-auto space-y-8">
+    
+    <!-- 頁首標題 -->
+    <header class="text-center py-4 border-b-4 border-slate-700">
+      <h1 class="text-3xl md:text-5xl font-extrabold text-amber-400 tracking-wide">
+        💎 寶石合成 & 分解 階梯流向計算機
+      </h1>
+      <p class="text-slate-400 text-xl mt-2">清晰大字版 · 直覺生產線流程展示</p>
+    </header>
+
+    <!-- 主控面板區 (頂部大按鈕) -->
+    <div class="bg-slate-800 p-6 rounded-2xl border-2 border-slate-700 space-y-6">
+      
+      <!-- 模式切換 -->
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="text-2xl font-bold text-slate-300">模式選擇：</span>
+        <button id="btn-mode-synth" onclick="setMode('synth')" class="btn-large bg-amber-500 text-slate-950 hover:bg-amber-400">
+          🔨 合成模式 (1~3階)
+        </button>
+        <button id="btn-mode-dissect" onclick="setMode('dissect')" class="btn-large bg-slate-700 text-slate-300 hover:bg-slate-600">
+          🧪 拆解模式 (1~6階)
+        </button>
+      </div>
+
+      <!-- 階級選擇 -->
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="text-2xl font-bold text-slate-300">選擇階數：</span>
+        <div id="tier-buttons-container" class="flex flex-wrap gap-3">
+          <!-- JS 動態生成 1~3 或 1~6 階 -->
+        </div>
+      </div>
+
+      <!-- 寶石種類選擇 (10種) -->
+      <div>
+        <div class="text-2xl font-bold text-slate-300 mb-3">選擇特殊寶石種類：</div>
+        <div id="gem-buttons-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <!-- JS 動態生成 10 種寶石按鈕 -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 結果區：階梯流向圖 (Step-by-Step Flow) -->
+    <div class="space-y-6">
+      <div class="flex items-center justify-between border-b-2 border-slate-700 pb-3">
+        <h2 class="text-3xl font-extrabold text-amber-300" id="flow-title">
+          生產流程圖
+        </h2>
+        <span class="text-xl text-slate-400" id="flow-subtitle">從原料到最終成品</span>
+      </div>
+
+      <!-- 階梯卡片容器 -->
+      <div id="flow-steps-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- JS 動態輸出每一步驟卡片 -->
+      </div>
+
+      <!-- 總加總清單 (Shopping List) 合成與拆解模式皆可看 -->
+      <div id="total-shopping-list" class="bg-amber-950/40 border-4 border-amber-500/60 rounded-2xl p-6 mt-8">
+        <h3 class="text-3xl font-extrabold text-amber-400 mb-4 flex items-center gap-3">
+          🛒 一鍵採購總表 <span class="text-xl font-normal text-amber-200/85" id="shopping-list-desc">(從零開始合成所需的「全部最底層原始材料」)</span>
+        </h3>
+        <div id="shopping-list-items" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <!-- JS 動態填入總耗材 -->
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // --- 完整配方資料庫 ---
+    const gemTypes = [
+      { id: "xuanhuang", name: "玄黃", attr: "體魄", full: "玄黃寶石" },
+      { id: "zhanlan",   name: "湛藍", attr: "力量", full: "湛藍寶石" },
+      { id: "bilu",      name: "碧綠", attr: "智慧", full: "碧綠寶石" },
+      { id: "feihong",   name: "緋紅", attr: "靈敏", full: "緋紅寶石" },
+      { id: "duocai",    name: "多彩", attr: "四屬性", full: "多彩晶鑽" },
+      { id: "gaohe",     name: "鋯褐", attr: "最大生命", full: "鋯褐寶石" },
+      { id: "cangzi",    name: "蒼紫", attr: "最大精力", full: "蒼紫寶石" },
+      { id: "canhei",    name: "燦黑", attr: "物防", full: "燦黑寶石" },
+      { id: "shuangbai", name: "霜白", attr: "術防", full: "霜白寶石" },
+      { id: "ganlan",    name: "橄欖", attr: "術攻", full: "橄欖寶石" }
+    ];
+
+    const synthRecipes = {
+      1: {
+        xuanhuang: [{ name: "紅寶石", count: 60 }, { name: "綠寶石", count: 60 }, { name: "聚氣寶石", count: 3 }],
+        zhanlan:   [{ name: "藍寶石", count: 120 }, { name: "開刃寶石", count: 3 }],
+        bilu:      [{ name: "綠寶石", count: 120 }, { name: "聚氣寶石", count: 3 }],
+        feihong:   [{ name: "紅寶石", count: 120 }, { name: "開刃寶石", count: 3 }],
+        duocai:    [{ name: "紅寶石", count: 90 }, { name: "綠寶石", count: 90 }, { name: "藍寶石", count: 90 }, { name: "黑寶石", count: 90 }, { name: "聚氣寶石", count: 9 }],
+        gaohe:     [{ name: "紅寶石", count: 60 }, { name: "黑寶石", count: 60 }, { name: "開刃寶石", count: 3 }],
+        cangzi:    [{ name: "紅寶石", count: 60 }, { name: "藍寶石", count: 60 }, { name: "聚氣寶石", count: 3 }],
+        canhei:    [{ name: "黑寶石", count: 120 }, { name: "開刃寶石", count: 3 }],
+        shuangbai: [{ name: "黑寶石", count: 60 }, { name: "藍寶石", count: 60 }, { name: "聚氣寶石", count: 3 }],
+        ganlan:    [{ name: "藍寶石", count: 60 }, { name: "綠寶石", count: 60 }, { name: "聚氣寶石", count: 3 }]
+      },
+      2: {
+        xuanhuang: [{ name: "玄黃寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "聚氣寶石", count: 6 }, { name: "活佛靈木", count: 3 }],
+        zhanlan:   [{ name: "湛藍寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "開刃寶石", count: 6 }, { name: "黑龍鱗片", count: 3 }],
+        bilu:      [{ name: "碧綠寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "聚氣寶石", count: 6 }, { name: "海龍鱗片", count: 3 }],
+        feihong:   [{ name: "緋紅寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "開刃寶石", count: 6 }, { name: "火玉", count: 3 }],
+        duocai:    [{ name: "多彩晶鑽Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "聚氣寶石", count: 12 }, { name: "火玉", count: 3 }],
+        gaohe:     [{ name: "鋯褐寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "開刃寶石", count: 6 }, { name: "天師靈木", count: 3 }],
+        cangzi:    [{ name: "蒼紫寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "聚氣寶石", count: 6 }, { name: "蜂王蜜", count: 3 }],
+        canhei:    [{ name: "燦黑寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "開刃寶石", count: 6 }, { name: "黑龍鱗片", count: 3 }],
+        shuangbai: [{ name: "霜白寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "聚氣寶石", count: 6 }, { name: "蜂王蜜", count: 3 }],
+        ganlan:    [{ name: "橄欖寶石Ⅰ", count: 3, isGem: true, tier: 1 }, { name: "聚氣寶石", count: 6 }, { name: "海龍鱗片", count: 3 }]
+      },
+      3: {
+        xuanhuang: [{ name: "玄黃寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "灰水晶鑽", count: 3 }],
+        zhanlan:   [{ name: "湛藍寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "水晶鑽", count: 3 }],
+        bilu:      [{ name: "碧綠寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "青水晶鑽", count: 3 }],
+        feihong:   [{ name: "緋紅寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "紅水晶鑽", count: 3 }],
+        duocai:    [{ name: "多彩晶鑽Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "天神符石", count: 60 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "四聖諦", count: 3 }],
+        gaohe:     [{ name: "鋯褐寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "四聖諦", count: 3 }],
+        cangzi:    [{ name: "蒼紫寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "五派前輩精魂", count: 3 }],
+        canhei:    [{ name: "燦黑寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "灰水晶鑽", count: 3 }],
+        shuangbai: [{ name: "霜白寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "五派前輩精魂", count: 3 }],
+        ganlan:    [{ name: "橄欖寶石Ⅱ", count: 3, isGem: true, tier: 2 }, { name: "奧林帕斯秘銀", count: 2 }, { name: "天神符石", count: 60 }]
+      }
+    };
+
+    const dissectRecipes = {
+      1: {
+        xuanhuang: { cost: [{ name: "天鋼之心", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        zhanlan:   { cost: [{ name: "天鋼之心", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        bilu:      { cost: [{ name: "天藥之菁", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        feihong:   { cost: [{ name: "天藥之菁", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        duocai:    { cost: [{ name: "天鋼之心", count: 1 }, { name: "天藥之菁", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        gaohe:     { cost: [{ name: "天鋼之心", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        cangzi:    { cost: [{ name: "天藥之菁", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        canhei:    { cost: [{ name: "天鋼之心", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        shuangbai: { cost: [{ name: "天藥之菁", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } },
+        ganlan:    { cost: [{ name: "天藥之菁", count: 1 }, { name: "機關軸心", count: 1 }], out: { name: "粗糙寶石粉", count: 1 } }
+      },
+      2: {
+        xuanhuang: { cost: [{ name: "天鋼之心", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        zhanlan:   { cost: [{ name: "天鋼之心", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        bilu:      { cost: [{ name: "天藥之菁", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        feihong:   { cost: [{ name: "天藥之菁", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        duocai:    { cost: [{ name: "天鋼之心", count: 2 }, { name: "天藥之菁", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 6 } },
+        gaohe:     { cost: [{ name: "天鋼之心", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        cangzi:    { cost: [{ name: "天藥之菁", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        canhei:    { cost: [{ name: "天鋼之心", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        shuangbai: { cost: [{ name: "天藥之菁", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } },
+        ganlan:    { cost: [{ name: "天藥之菁", count: 2 }, { name: "機關軸心", count: 2 }], out: { name: "粗糙寶石粉", count: 3 } }
+      },
+      3: {
+        xuanhuang: { cost: [{ name: "無敵恆金", count: 8 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        zhanlan:   { cost: [{ name: "無敵恆金", count: 8 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        bilu:      { cost: [{ name: "天藥之菁", count: 5 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        feihong:   { cost: [{ name: "天藥之菁", count: 5 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        duocai:    { cost: [{ name: "無敵恆金", count: 8 }, { name: "天藥之菁", count: 5 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 2 } },
+        gaohe:     { cost: [{ name: "無敵恆金", count: 8 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        cangzi:    { cost: [{ name: "天藥之菁", count: 5 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        canhei:    { cost: [{ name: "無敵恆金", count: 8 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        shuangbai: { cost: [{ name: "天藥之菁", count: 2 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } },
+        ganlan:    { cost: [{ name: "天藥之菁", count: 2 }, { name: "奧林帕斯秘銀", count: 1 }], out: { name: "尋常寶石粉", count: 1 } }
+      },
+      4: {
+        xuanhuang: { cost: [{ name: "終末星質", count: 3 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        zhanlan:   { cost: [{ name: "終末星質", count: 3 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        bilu:      { cost: [{ name: "天藥之菁", count: 8 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        feihong:   { cost: [{ name: "天藥之菁", count: 8 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        duocai:    { cost: [{ name: "終末星質", count: 3 }, { name: "天藥之菁", count: 8 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 6 } },
+        gaohe:     { cost: [{ name: "終末星質", count: 3 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        cangzi:    { cost: [{ name: "天藥之菁", count: 8 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        canhei:    { cost: [{ name: "終末星質", count: 3 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        shuangbai: { cost: [{ name: "天藥之菁", count: 8 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } },
+        ganlan:    { cost: [{ name: "天藥之菁", count: 8 }, { name: "奧林帕斯秘銀", count: 2 }], out: { name: "尋常寶石粉", count: 3 } }
+      },
+      5: {
+        xuanhuang: { cost: [{ name: "星煌碧岩", count: 1 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        zhanlan:   { cost: [{ name: "星煌碧岩", count: 1 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        bilu:      { cost: [{ name: "天藥之菁", count: 12 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        feihong:   { cost: [{ name: "天藥之菁", count: 12 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        duocai:    { cost: [{ name: "星煌碧岩", count: 9 }, { name: "天藥之菁", count: 12 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 2 } },
+        gaohe:     { cost: [{ name: "星煌碧岩", count: 9 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        cangzi:    { cost: [{ name: "天藥之菁", count: 12 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        canhei:    { cost: [{ name: "星煌碧岩", count: 9 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        shuangbai: { cost: [{ name: "天藥之菁", count: 12 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } },
+        ganlan:    { cost: [{ name: "天藥之菁", count: 12 }, { name: "奧林帕斯秘銀", count: 5 }], out: { name: "細緻寶石粉", count: 1 } }
+      },
+      6: {
+        xuanhuang: { cost: [{ name: "皇龍星銀", count: 5 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        zhanlan:   { cost: [{ name: "皇龍星銀", count: 5 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        bilu:      { cost: [{ name: "天藥之菁", count: 18 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        feihong:   { cost: [{ name: "天藥之菁", count: 18 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        duocai:    { cost: [{ name: "皇龍至鋼", count: 5 }, { name: "天藥之菁", count: 18 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 6 } },
+        gaohe:     { cost: [{ name: "皇龍至鋼", count: 5 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        cangzi:    { cost: [{ name: "天藥之菁", count: 18 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        canhei:    { cost: [{ name: "皇龍至鋼", count: 5 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        shuangbai: { cost: [{ name: "天藥之菁", count: 18 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } },
+        ganlan:    { cost: [{ name: "天藥之菁", count: 18 }, { name: "奧林帕斯秘銀", count: 8 }], out: { name: "細緻寶石粉", count: 3 } }
+      }
+    };
+
+    let currentMode = 'synth';
+    let currentTier = 3;
+    let currentGemId = 'ganlan';
+
+    const romanMap = { 1: "Ⅰ", 2: "Ⅱ", 3: "Ⅲ", 4: "Ⅳ", 5: "Ⅴ", 6: "Ⅵ" };
+
+    window.onload = function() {
+      renderTierButtons();
+      renderGemButtons();
+      updateView();
+    };
+
+    function setMode(mode) {
+      currentMode = mode;
+      if (currentMode === 'synth' && currentTier > 3) {
+        currentTier = 3;
+      }
+      
+      const btnSynth = document.getElementById('btn-mode-synth');
+      const btnDissect = document.getElementById('btn-mode-dissect');
+      if (currentMode === 'synth') {
+        btnSynth.className = "btn-large bg-amber-500 text-slate-950 hover:bg-amber-400";
+        btnDissect.className = "btn-large bg-slate-700 text-slate-300 hover:bg-slate-600";
+      } else {
+        btnSynth.className = "btn-large bg-slate-700 text-slate-300 hover:bg-slate-600";
+        btnDissect.className = "btn-large bg-amber-500 text-slate-950 hover:bg-amber-400";
+      }
+
+      renderTierButtons();
+      updateView();
+    }
+
+    function renderTierButtons() {
+      const container = document.getElementById('tier-buttons-container');
+      container.innerHTML = '';
+      const maxTier = currentMode === 'synth' ? 3 : 6;
+
+      for (let i = 1; i <= maxTier; i++) {
+        const btn = document.createElement('button');
+        const isActive = currentTier === i;
+        btn.className = `btn-large ${isActive ? 'bg-amber-400 text-slate-950 border-2 border-amber-300' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'}`;
+        btn.innerText = `${i} 階`;
+        btn.onclick = () => {
+          currentTier = i;
+          renderTierButtons();
+          updateView();
+        };
+        container.appendChild(btn);
+      }
+    }
+
+    function renderGemButtons() {
+      const container = document.getElementById('gem-buttons-container');
+      container.innerHTML = '';
+
+      gemTypes.forEach(gem => {
+        const isActive = currentGemId === gem.id;
+        const btn = document.createElement('button');
+        btn.className = `gem-card p-3 flex flex-col items-center justify-center cursor-pointer transition ${isActive ? 'active' : 'hover:border-slate-500'}`;
+        btn.onclick = () => {
+          currentGemId = gem.id;
+          renderGemButtons();
+          updateView();
+        };
+
+        btn.innerHTML = `
+          <span class="text-2xl font-black text-amber-300">${gem.name}</span>
+          <span class="text-base text-slate-400">${gem.attr}</span>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function updateView() {
+      const targetGem = gemTypes.find(g => g.id === currentGemId);
+      const titleEl = document.getElementById('flow-title');
+      const subtitleEl = document.getElementById('flow-subtitle');
+      const stepsContainer = document.getElementById('flow-steps-container');
+      const shoppingListSec = document.getElementById('total-shopping-list');
+      const shoppingListDesc = document.getElementById('shopping-list-desc');
+
+      stepsContainer.innerHTML = '';
+
+      if (currentMode === 'synth') {
+        titleEl.innerText = `🔨 合成流程：${targetGem.full}${romanMap[currentTier]}`;
+        subtitleEl.innerText = `逐步拆解升階過程`;
+        shoppingListSec.classList.remove('hidden');
+        shoppingListDesc.innerText = "(從零開始合成所需的「全部最底層原始材料」)";
+
+        for (let t = 1; t <= currentTier; t++) {
+          const card = createSynthStepCard(targetGem, t);
+          stepsContainer.appendChild(card);
+        }
+
+        renderShoppingList(targetGem.id, currentTier);
+
+      } else {
+        titleEl.innerText = `🧪 拆解流程：${targetGem.full}${romanMap[currentTier]}`;
+        subtitleEl.innerText = `拆解所需材料與產出的寶石粉`;
+        shoppingListSec.classList.remove('hidden'); // 拆解模式也顯示合成與總材料！
+        shoppingListDesc.innerText = `(為了拆解這顆「${romanMap[currentTier]}階寶石」，從零合成它所需的總材料)`;
+
+        // 1. 顯示該階的拆解卡片
+        const dissectCard = createDissectStepCard(targetGem, currentTier);
+        stepsContainer.appendChild(dissectCard);
+
+        // 2. 如果是 4~6 階，提示遊戲目前合成只到 3 階，採購表以 3 階計算
+        let effectiveSynthTier = Math.min(currentTier, 3);
+
+        // 3. 額外在下方建立一個區塊展示該寶石的合成各階卡片
+        const synthHeader = document.createElement('div');
+        synthHeader.className = "col-span-1 md:col-span-3 mt-4 border-t-2 border-slate-700 pt-6";
+        synthHeader.innerHTML = `<h3 class="text-2xl font-extrabold text-amber-300">📦 前置合成生產線 (目標：合成出 ${targetGem.full}${romanMap[currentTier]})</h3>`;
+        stepsContainer.appendChild(synthHeader);
+
+        for (let t = 1; t <= effectiveSynthTier; t++) {
+          const card = createSynthStepCard(targetGem, t);
+          stepsContainer.appendChild(card);
+        }
+
+        if (currentTier > 3) {
+          const notice = document.createElement('div');
+          notice.className = "col-span-1 md:col-span-3 bg-blue-950/40 border border-blue-500/50 p-4 rounded-xl text-blue-200 text-lg";
+          notice.innerText = `💡 提示：遊戲目前合成配方最高開到 3 階。下方總採購表以 3 階為基準計算。`;
+          stepsContainer.appendChild(notice);
+        }
+
+        renderShoppingList(targetGem.id, effectiveSynthTier);
+      }
+    }
+
+    function createSynthStepCard(gem, tier) {
+      const card = document.createElement('div');
+      card.className = "bg-slate-800 border-2 border-slate-700 rounded-2xl p-6 space-y-4 shadow-xl";
+      
+      const materials = synthRecipes[tier][gem.id];
+      let matHTML = '';
+      
+      materials.forEach(m => {
+        matHTML += `
+          <div class="flex justify-between items-center bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+            <span class="text-xl font-bold text-slate-200">${m.name}</span>
+            <span class="text-2xl font-extrabold text-amber-400">× ${m.count}</span>
+          </div>
+        `;
+      });
+
+      card.innerHTML = `
+        <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+          <span class="text-2xl font-black text-amber-300">步驟 ${tier}：合成 ${gem.name}${romanMap[tier]}</span>
+          <span class="text-base bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full font-bold">第 ${tier} 階段</span>
+        </div>
+        <div class="space-y-2">
+          <div class="text-lg text-slate-400 font-semibold mb-2">必要耗材材料：</div>
+          ${matHTML}
+        </div>
+      `;
+      return card;
+    }
+
+    function createDissectStepCard(gem, tier) {
+      const card = document.createElement('div');
+      card.className = "bg-slate-800 border-2 border-slate-700 rounded-2xl p-6 space-y-6 shadow-xl col-span-1 md:col-span-3";
+
+      const data = dissectRecipes[tier][gem.id];
+      let costHTML = `
+        <div class="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-700">
+          <span class="text-2xl font-bold text-slate-200">主物件：${gem.full}${romanMap[tier]}</span>
+          <span class="text-2xl font-extrabold text-amber-400">× 1</span>
+        </div>
+      `;
+
+      data.cost.forEach(c => {
+        costHTML += `
+          <div class="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-700">
+            <span class="text-xl font-bold text-slate-200">${c.name}</span>
+            <span class="text-2xl font-extrabold text-amber-400">× ${c.count}</span>
+          </div>
+        `;
+      });
+
+      card.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
+          <div class="md:col-span-3 space-y-3">
+            <h4 class="text-2xl font-extrabold text-slate-300">放入材料 (主物件 + 拆解耗材)</h4>
+            <div class="space-y-2">
+              ${costHTML}
+            </div>
+          </div>
+          <div class="md:col-span-1 flex justify-center text-4xl text-amber-400 font-black">
+            ➔
+          </div>
+          <div class="md:col-span-1 bg-amber-500/10 border-2 border-amber-500 p-6 rounded-2xl text-center space-y-3">
+            <div class="text-xl font-bold text-amber-200">獲得拆解產出</div>
+            <div class="text-3xl font-black text-amber-300">${data.out.name}</div>
+            <div class="text-4xl font-black text-amber-400">× ${data.out.count}</div>
+          </div>
+        </div>
+      `;
+      return card;
+    }
+
+    function renderShoppingList(gemId, targetTier) {
+      const totalMap = {};
+
+      function calc(gId, tier, multiplier) {
+        const recipe = synthRecipes[tier][gId];
+        recipe.forEach(item => {
+          if (item.isGem) {
+            calc(gId, item.tier, multiplier * item.count);
+          } else {
+            totalMap[item.name] = (totalMap[item.name] || 0) + (item.count * multiplier);
+          }
+        });
+      }
+
+      calc(gemId, targetTier, 1);
+
+      const container = document.getElementById('shopping-list-items');
+      container.innerHTML = '';
+
+      Object.entries(totalMap).forEach(([name, count]) => {
+        const itemEl = document.createElement('div');
+        itemEl.className = "flex justify-between items-center bg-slate-900/90 p-4 rounded-xl border-2 border-amber-500/40";
+        itemEl.innerHTML = `
+          <span class="text-xl font-bold text-slate-100">${name}</span>
+          <span class="text-3xl font-black text-amber-300">× ${count}</span>
+        `;
+        container.appendChild(itemEl);
+      });
+    }
+  </script>
+</body>
+</html>
